@@ -23,21 +23,9 @@
 #include FT_FREETYPE_H
 
 //This include a header containing definitions of our image
-#include "brew_bgr.h"
+// #include "brew_bgr.h"
 
 int loop(void) {
-	// Initialize the services
-	// gfxInitDefault();
-
-	//We don't need double buffering in this example. In this way we can draw our image only once on screen.
-	gfxSetDoubleBuffering(GFX_BOTTOM, false);
-
-	//Get the bottom screen's frame buffer
-	u8* fb = gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
-
-	//Copy our image in the bottom screen's frame buffer
-	memcpy(fb, brew_bgr, brew_bgr_size);
-
 	// Main loop
 	while (aptMainLoop())
 	{
@@ -76,12 +64,14 @@ void listFonts(void) {
 
 	FS_Archive archive;
 	result = FSUSER_OpenArchive(&archive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""));
-	FS_Path path = fsMakePath(PATH_ASCII, "/font");
-	printf("[ OK ] path (%lu)\n", path.size);
+	const char *fontpath = "/Font";
+	FS_Path fs_path = fsMakePath(PATH_ASCII, fontpath);
+	printf("[ OK ] fsMakePath %s len=%lu\n", fontpath, fs_path.size);
+	
 	Handle handle;
-	result = FSUSER_OpenDirectory(&handle, archive, path);
-	assert(result, "opening dir");
-	printf("[ OK ] opening dir (%li) (%lu)\n", result, handle);
+	result = FSUSER_OpenDirectory(&handle, archive, fs_path);
+	assert(result, "FSUSER_OpenDirectory");
+	printf("[ OK ] FSUSER_OpenDirectory (%li) handle=%lu\n", result, handle);
 
 	FS_DirectoryEntry entries[32];
 	u32 count;
@@ -89,25 +79,17 @@ void listFonts(void) {
 	assert(result, "reading directory");
 	printf("[ OK ] read %ld entries\n", count);
 	for (u32 i = 0; i < count; i++) {
-		// if (!strcmp(entries[i].shortName, "FONT    ")) {
-		// 	result = FSUSER_OpenDirectory(&handle, archive, path);
-		// 	result = FSDIR_Read(handle, &count, 32, entries);
-		// 	for (u32 j = 0; j < count; j++) {
-		// 	}
-		// 	FS_Path path = fsMakePath(PATH_UTF16, "font/FONT.TTF");
-		// 	Handle handle;
-		// 	result = FSUSER_OpenFile(&handle, archive, path, FS_OPEN_READ, 0);
-		// 	assert(result, "opening file");
-		// 	printf("[ OK ] opening file (%li)\n", result);
-		// 	printf("%s\n", entries[i].shortName);
-		// }
-		printf("%s\n", entries[i].shortName);
+		printf("[ OK ] %x%x %s.%s\n",
+			entries[i].name[0],
+			entries[i].name[1],
+			entries[i].shortName,
+			entries[i].shortExt);
 	}
 
 	FSDIR_Close(handle);
 }
 
-int ftAssert(FT_Error error, const char *message) {
+int ftAssert(FT_Error error, const char *mkessage) {
 	if (error) {
 		printf("[FAIL] %s (%i)\n", message, error);
 		return loop();
@@ -168,17 +150,9 @@ void ftInitDefault(FT_Byte* file_base, u32 file_size) {
 	FT_Done_FreeType(library);
 }
 
-int main(int argc, char **argv)
-{
+void loadFont(void) {
 	Result result;
 	FS_Archive archive;
-
-	gfxInitDefault();
-
-	//Initialize console on top screen. Using NULL as the second argument tells the console library to use the internal console structure as current one
-	consoleInit(GFX_TOP, NULL);
-	printf("\n");
-	printf("[ OK ] dslibrOS\n");
 
 	result = fsInit();	
 	assert(result, "fsInit");
@@ -194,6 +168,7 @@ int main(int argc, char **argv)
 	printf("[ OK ] opening font (%li)\n"
 		   "[ OK ] %s\n"
 		   "[ OK ] handle=%lu\n", result, fontpath, handle);
+
 	u64 size;
 	result = FSFILE_GetSize(handle, &size);
 	printf("[ OK ] %llu bytes\n", size);
@@ -201,10 +176,51 @@ int main(int argc, char **argv)
 	FT_Byte* buffer = new FT_Byte[size];
 	u32 bytesRead;
 	result = FSFILE_Read(handle, &bytesRead, 0, buffer, size);
-	
+
 	ftInitDefault(buffer, size);
 
 	fsExit();
+}
+
+int main(int argc, char **argv)
+{
+	gfxInitDefault();
+
+	//Initialize console on top screen. Using NULL as the second argument tells the console library to use the internal console structure as current one
+	consoleInit(GFX_TOP, NULL);
+	printf("\n");
+	printf("[ OK ] dslibrOS\n");
+
+	listFonts();
+
+	//Load the font from SDMC
+	// loadFont();
+	// printf("[ OK ] font loaded\n");
+
+	//We don't need double buffering in this example. In this way we can draw our image only once on screen.
+	gfxSetDoubleBuffering(GFX_BOTTOM, false);
+
+	//Get the bottom screen's frame buffer
+	u16 width, height;
+	u8* fb = gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, &width, &height);
+	auto format = gfxGetScreenFormat(GFX_BOTTOM);
+	printf("[ OK ] %dx%d framebuffer format=%d\n", width, height, format);
+
+	// size_t len = width * height * 3;
+	// u8 canvas[len];
+	// Copy our image in the bottom screen's frame buffer
+	// memset(canvas, 0, len);
+	// memcpy(fb, canvas, len);
+
+	for (u8 i=0; i<height; i++) {
+		for (u8 j=0; j<width; j++) {
+			fb[(i * width + j) * 3 + 0] = 0xFF; // B
+			fb[(i * width + j) * 3 + 1] = 0x00; // G
+			fb[(i * width + j) * 3 + 2] = 0xFF; // R
+		}
+	}
+
+	gfxFlushBuffers();
 
 	return loop();
 }
