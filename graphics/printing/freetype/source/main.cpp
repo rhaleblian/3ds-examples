@@ -89,7 +89,7 @@ void listFonts(void) {
 	FSDIR_Close(handle);
 }
 
-int ftAssert(FT_Error error, const char *mkessage) {
+int ftAssert(FT_Error error, const char *message) {
 	if (error) {
 		printf("[FAIL] %s (%i)\n", message, error);
 		return loop();
